@@ -1,4 +1,4 @@
-# AA_experiment
+# AA experiment
  
 The code in this repository presents an initial attempt to make a simple CNN model (LeNet) more
 robust against adversarial attacks. Specifically, we consider the performance of our method to
@@ -21,5 +21,8 @@ There is potential for more improvement, however: we can consider adding more in
 layers, instead of just one (earlier updates should make our model more robust). We can also
 consider changing the manner in which we update - currently we only subtract the update network's
 gradient from the input once.
+
+To run get the results referenced above, run <run_attack_\*.py> directly: models have already been
+trained, and their weights are stored in <data/>.
 
 Some of the code in this repository is built off of the [Pytorch tutorial on FGSMs](https://github.com/pytorch/tutorials/blob/master/beginner_source/fgsm_tutorial.py).
