@@ -35,28 +35,20 @@ class think_net(nn.Module):
         return x
 
 # =======================================
-def zhook_fn(grad):
-    print('zhook grad ',grad)
-    return grad
-# =======================================
 def optimize(tnet,z):
 
     esp = 0.1
     niter = 3
     z.requires_grad_(True)
-    z.register_hook(zhook_fn)
     z.retain_grad()
+
     for t in range(niter):
-        print('line 50')
         y = tnet(z)
-        print('line 52')
-        y.backward(torch.tensor([1.]),retain_graph=True)
-        print('line 54')
+        y.backward(torch.tensor([1.]))
         print('t ',t,' : z ',z,' zgrad ',z.grad,' y ',y)
         with torch.no_grad():
             z = z - esp*z.grad
-        print('line 58')
-        #z.grad.zero_()
+            z.requires_grad_(True)
 
     return z
 # =======================================
@@ -68,13 +60,9 @@ if __name__=='__main__':
     tnet = think_net()
     tnet.train()
 
-    # this code pass through encoder but passing through
-    # encoder break the code, don't know why
     x = torch.tensor([1.0],requires_grad=False)
     x.requires_grad_(False)
     z = enet(x)
-
-    #z = torch.tensor([1.0,1.0])
     z = optimize(tnet,z)
 
     print('final z ',z,' z grad ',z.grad)
