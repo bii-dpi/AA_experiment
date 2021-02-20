@@ -35,20 +35,27 @@ class think_net(nn.Module):
         return x
 
 # =======================================
+def zhook_fn(grad):
+    print('zhook grad ',grad)
+    return grad
+# =======================================
 def optimize(tnet,z):
 
-    zgrad=[]
     esp = 0.1
     niter = 3
     z.requires_grad_(True)
-    z.register_hook(lambda a:zgrad.append(a))
-
+    z.register_hook(zhook_fn)
+    z.retain_grad()
     for t in range(niter):
+        print('line 50')
         y = tnet(z)
+        print('line 52')
         y.backward(torch.tensor([1.]),retain_graph=True)
-        print('t ',t,' : z ',z,' zgrad ',zgrad,' y ',y)
+        print('line 54')
+        print('t ',t,' : z ',z,' zgrad ',z.grad,' y ',y)
         with torch.no_grad():
-            z -= esp*zgrad[t-1]
+            z = z - esp*z.grad
+        print('line 58')
         #z.grad.zero_()
 
     return z
@@ -66,7 +73,6 @@ if __name__=='__main__':
     x = torch.tensor([1.0],requires_grad=False)
     x.requires_grad_(False)
     z = enet(x)
-    #print('z ',z)
 
     #z = torch.tensor([1.0,1.0])
     z = optimize(tnet,z)
