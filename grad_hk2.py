@@ -17,29 +17,30 @@ class encoder_net(nn.Module):
 # =======================================
 class think_net(nn.Module):
 
-    def __init__(self):
+    def __init__(self,nhidden=32):
         super(think_net,self).__init__()
-        self.fc1 = nn.Linear(2 ,32,bias=True)
-        self.fc2 = nn.Linear(32,32,bias=True)
-        self.fc3 = nn.Linear(32,1 ,bias=True)
+        self.fc1 = nn.Linear(2      ,nhidden,bias=True)
+        self.fc2 = nn.Linear(nhidden,nhidden,bias=True)
+        self.fc3 = nn.Linear(nhidden,1 ,bias=True)
         #with torch.no_grad():
         #    self.fc1.weight.fill_(0.1)
-        #    self.fc2.weight.fill_(1.0)
+        #    self.fc2.weight.fill_(0.1)
+        #    self.fc3.weight.fill_(0.1)
 
     def forward(self,x):
         x = self.fc1(x)
-        x = torch.relu(x)
+        x = torch.sigmoid(x)
         x = self.fc2(x)
-        x = torch.relu(x)
+        x = torch.sigmoid(x)
         x = self.fc3(x)
-        x = torch.relu(x)
+        x = torch.sigmoid(x)
         return x
 # =======================================
 class classifier_net(nn.Module):
     def __init__(self):
         super(classifier_net,self).__init__()
-        self.fc1 = nn.Linear(2,2,bias=False)
-        self.fc2 = nn.Linear(2,2,bias=False)
+        self.fc1 = nn.Linear(2,2,bias=True)
+        self.fc2 = nn.Linear(2,2,bias=True)
         #with torch.no_grad():
         #    self.fc1.weight.fill_(0.5)
         #    self.fc2.weight.fill_(1.0)
@@ -49,10 +50,11 @@ class classifier_net(nn.Module):
         x = torch.sigmoid(x)
         x = self.fc2(x)
         x = torch.sigmoid(x)
+        x = torch.softmax(x,dim=1)
         return x
 
 # =======================================
-def grad_descend(tnet,z,niter=20,eps=0.01):
+def grad_descend(tnet,z,niter=8,eps=0.1):
 
     z_list = []
     z.retain_grad()
@@ -85,7 +87,7 @@ def prepare_data(ndata):
 
 if __name__=='__main__':
 
-    torch.manual_seed(172839)
+    torch.manual_seed(263839)
     enet = encoder_net()
     tnet = think_net()
     cnet = classifier_net()
@@ -96,9 +98,10 @@ if __name__=='__main__':
     end2end_param = list(enet.parameters()) + \
                     list(tnet.parameters()) + \
                     list(cnet.parameters())
-    net_opt = optim.Adam(end2end_param)
+    net_opt = optim.Adam(end2end_param,weight_decay=0.01)
+    #net_opt = optim.SGD(end2end_param,lr=0.001)
 
-    ndata = 128  # total number of data point, feed in a batch
+    ndata = 64  # total number of data point, feed in a batch
     nepoch = 100000
 
     for epoch in range(nepoch):
@@ -108,14 +111,14 @@ if __name__=='__main__':
         z = enet(x)                   # encode
         z_list = grad_descend(tnet,z) # perform gradient descend
         #print('z list first ',z_list)
-
         zbatch = z_list[-1]           # feed the final time step z into cnet
         #print('zbatch ',zbatch)
         pred = cnet(zbatch)           # classify optimized z
         #print('pred ',pred,'\n label ',label)
 
         loss = nn.functional.cross_entropy(pred,label)
-        if epoch%(nepoch//100)==0:
+
+        if epoch%(nepoch//1000)==0:
             print('loss ',loss)
             # plot tnet surface here
             # plot_tnet()
