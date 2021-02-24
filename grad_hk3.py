@@ -20,18 +20,24 @@ class encoder_net(nn.Module):
 
 # =======================================
 class think_net(nn.Module):
-    def __init__(self, nhidden=4):
+    def __init__(self, nhidden=128):
         super(think_net, self).__init__()
-        self.fc1 = nn.Linear(2, nhidden)
-        self.fc2 = nn.Linear(nhidden, 1)
-        with torch.no_grad():
-           self.fc1.weight.fill_(0.5)
-           self.fc2.weight.fill_(1.0)
+        self.fc1 = nn.Linear(2,       nhidden)
+        self.fc2 = nn.Linear(nhidden, nhidden)
+        self.fc3 = nn.Linear(nhidden, 1)
+        self.act1 = nn.LeakyReLU(0.1)
+        self.act2 = nn.LeakyReLU(0.1)
+        #with torch.no_grad():
+        #   self.fc1.weight.fill_(1e3)
+        #   self.fc2.weight.fill_(1e-3)
+        #   self.fc3.weight.fill_(1e3)
 
     def forward(self, x):
         x = self.fc1(x)
-        x = torch.sigmoid(x)
+        x = self.act1(x)
         x = self.fc2(x)
+        x = self.act2(x)
+        x = self.fc3(x)
         x = torch.sigmoid(x)
         return x
 
@@ -47,42 +53,52 @@ class classifier_net(nn.Module):
         x = torch.softmax(x, dim=1)
         return x
 
-
 # =======================================
-def grad_descend(tnet, z, niter=8, eps=0.1):
+def grad_descend(tnet, z, niter=2, eps=0.1):
     z_list = []
     z.retain_grad()
     z_list.append(z)
+
+    sum_delta=0
 
     for t in range(niter):
         y = tnet(z_list[t])
         y.backward(torch.ones([ndata, 1]))
         #print('t ',t,' : z ',z_list[t],' zgrad ',z_list[t].grad,' y ',y)
         with torch.no_grad():
-            a = z_list[t] - eps * z_list[t].grad
-            #print(z_list[t].grad)
+            delta = eps * z_list[t].grad
+            a = z_list[t] - delta
             a.requires_grad_(True)
         z_list[t].grad.zero_()
         z_list.append(a)
+        sum_delta = sum_delta + torch.abs(delta)
 
-    return z_list
-
+    return z_list,sum_delta
 
 # =======================================
-def plot_tnet(epoch):
+# this function checks that plot is correct
+def add_test(input):
+    r = input[0][0]+input[0][1]
+    r = torch.unsqueeze(torch.unsqueeze(r,0),0)
+    return r
+# =======================================
+def plot_net(title,net):
+
+    # prepare the grid
+    npixels = 32
+    axis = np.linspace(-0.2, 1.2, npixels)
+    X,Y = np.meshgrid(axis,axis)
+    mesh_pairs = np.array(np.meshgrid(axis,axis)).T.reshape(-1,2)
+
+    # evaluate the loss
     with torch.no_grad():
-        tnet.eval()
-        X = []
-        Y = []
         heights = []
-        axis = np.linspace(-0.2, 1.2, 256)
-        for x1 in axis:
-            for x2 in axis:
-                X.append(x1)
-                Y.append(x2)
-                curr_input = torch.FloatTensor([x1, x2])
-                heights.append([tnet(curr_input).item()])
-        tnet.train()
+        for xy in mesh_pairs:
+            input = torch.unsqueeze(torch.FloatTensor(xy),0)
+            h = net(input)
+            h = h.tolist()[0][0]
+            heights.append([h])
+    heights = np.asarray(heights).reshape(npixels,npixels)
 
     fig = plt.figure()
     ax = fig.gca(projection='3d')
@@ -101,32 +117,30 @@ def plot_tnet(epoch):
     ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
     ax.set_xlabel('x1')
     ax.set_ylabel('x2')
-    ax.set_zlabel('tnet output')
-    plt.title(f"Epoch {epoch}")
-    
-    # Add a color bar which maps values to colors.
-    #fig.colorbar(surf, shrink=0.5, aspect=5)
+    ax.set_zlabel('output')
+    plt.title(title)
     
     plt.show()
-
 
 # =======================================
 def print_param(net):
     for param in net.parameters():
         print(param.data)
 
-
 # =======================================
 def prepare_data(ndata):
     x = torch.rand([ndata, 2])
-    y = torch.squeeze(torch.sum(x ** 2, axis=1) < np.sqrt(2 / np.pi)).long()
+    # error in label
+    y = torch.squeeze(torch.sum(x ** 2, axis=1) < (2.0 / np.pi)).long()
 
     return x, y
 
-
 # =======================================
 if __name__ == "__main__":
-    torch.manual_seed(263839)
+
+    plot_net('pls visually check plot',add_test)
+
+    torch.manual_seed(267839)
     enet = encoder_net()
     tnet = think_net()
     cnet = classifier_net()
@@ -139,24 +153,30 @@ if __name__ == "__main__":
     )
     net_opt = optim.Adam(end2end_param, weight_decay=0.01)
 
-    ndata = 64
-    nepoch = 10000
+    ndata = 256
+    nepoch = 1000
 
     for epoch in range(nepoch+1):
         x, label = prepare_data(ndata)
         position = torch.FloatTensor([[i.item(), i.item()] for i in label])
+        data_balance = torch.sum(label)*1.0/ndata
+        assert torch.abs(data_balance-0.5)<0.2,'data imbalance, cannot train'
 
         z = enet(x)
         z.requires_grad = True
-        z_list = grad_descend(tnet, z)
+        z_list,delta = grad_descend(tnet, z)
         zbatch = z_list[-1]
         pred = cnet(zbatch)
         ce_loss = nn.functional.cross_entropy(pred, label)
         mse_loss = torch.mul(lda, torch.mean((position - zbatch) ** 2))
-        loss = ce_loss + mse_loss
-        if epoch % 500 == 0:
+        #loss = ce_loss + mse_loss
+        loss =  mse_loss
+        if epoch % (nepoch//5) == 0:
             print(f"Total: {loss.item():.2f} || CE: {ce_loss.item():.2f}, MSE: {mse_loss.item()/lda:.2f}")
-            plot_tnet(epoch)
+        print('ave delta ',torch.sum(torch.abs(delta))/ndata)
+        title = 'tnet : '+str(epoch)
+        plot_net(title,tnet)
         loss.backward()
         net_opt.step()  # update weights end2end
-    plot_tnet(epoch)
+    print('done with opt ================ ')
+    plot_net('cnet',cnet)
