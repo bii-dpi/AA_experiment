@@ -1,4 +1,4 @@
-"""Script to train updater net on the 'circular-boundary' dataset."""
+"""Script to train updater net on the circular and linear boundary datasets."""
 
 import time
 import torch
@@ -26,7 +26,7 @@ def train(args, updater, class_positions_dict, classifier, prepare_data, device,
 	loss = F.cross_entropy(output, y)
 	loss.backward()
 	optimizer.step()
-	return loss.item(), get_accuracy(output, y)
+	return loss.item() / args.batch_size, get_accuracy(output, y)
 
 
 def test(args, updater, class_positions_dict, classifier, prepare_data, device):
