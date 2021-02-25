@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from typing import Dict, Iterable, Callable
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
-from data_utils import get_class_positions
+from data_utils import get_class_positions, get_nearest_class_positions
 
 class VerboseExecution(nn.Module):
 	"""A wrapper to display model dimensionality."""
@@ -96,24 +96,30 @@ def estimate_time_left(epoch: int, num_epochs: int, time_taken: float) -> None:
 			f"time left: {((num_epochs - epoch) / epoch) * time_taken * 100:.2f}s")
 			
 
-def get_updated_input(updater, x, y):
+def get_updated_input(updater, x, y, class_positions_dict, num_updates, update_lr):
 	x_list = []
 	x.retain_grad()
 	x_list.append(x)
 
 	sum_delta = 0
 
-	for t in range(3):
+	for t in range(num_updates):
 		updater_output = updater(x_list[t])
-		updater_loss = (updater_output - get_class_positions(y)) ** 2
+		if y is None:
+			y = get_nearest_class_positions(class_positions_dict, updater_output)
+		updater_loss = (updater_output - get_class_positions(class_positions_dict, y)) ** 2
 		updater_loss.backward(torch.ones([list(x.shape)[0], 1]))
 		#print('t ',t,' : x ',x_list[t],' xgrad ',x_list[t].grad,' y ',y)
 		with torch.no_grad():
-			delta = 0.1 * x_list[t].grad
+			delta = update_lr * x_list[t].grad
 			a = x_list[t] - delta
 			a.requires_grad_(True)
 		x_list[t].grad.zero_()
 		x_list.append(a)
 		sum_delta = sum_delta + torch.abs(delta)
 	return updater(x_list[-1])
+
+def get_accuracy(output, y):
+	"""Gets accuracy of a softmax-ed output."""
+	return ((torch.sum(torch.argmax(output, dim=1) == y) * 100) / len(y)).item()
 
