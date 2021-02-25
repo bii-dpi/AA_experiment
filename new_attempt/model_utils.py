@@ -107,13 +107,14 @@ def get_updated_input(updater, x, y, class_positions_dict, num_updates, update_l
 	x_list.append(x)
 
 	sum_delta = 0
+	
+	if y is not None:
+		class_positions = get_class_positions(class_positions_dict, y)
 
 	for t in range(num_updates):
 		updater_output = updater(x_list[t])
 		if y is None:
 			class_positions = get_nearest_class_positions(class_positions_dict, updater_output)
-		else:
-			class_positions = get_class_positions(class_positions_dict, y)
 		updater_loss = (updater_output - class_positions)  ** 2
 		updater_loss.backward(torch.ones([list(x.shape)[0], 1]))
 		#print('t ',t,' : x ',x_list[t],' xgrad ',x_list[t].grad,' y ',y)

@@ -58,8 +58,8 @@ def main():
 						help="quickly check a single pass")
 	parser.add_argument("--seed", type=int, default=12345,
 						help="random seed (default: 12345)")
-	parser.add_argument("--log-interval", type=int, default=1000,
-						help="interval to print training status (default: 1000)")
+	parser.add_argument("--log-interval", type=int, default=100,
+						help="interval to print training status (default: 100)")
 	parser.add_argument("--no-plot", action="store_true", default=False,
 						help="disables updater net plotting")
 	parser.add_argument("--num-updates", type=int, default=20,

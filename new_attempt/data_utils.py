@@ -51,7 +51,6 @@ def get_class_positions(class_positions_dict: dict, y: torch.Tensor) -> torch.Te
 
 def get_nearest_class_position(class_positions_dict: dict, output: torch.Tensor) -> List:
 	"""Get nearest class position to current updater output."""
-	#output = output.item()
 	min_dist = np.Inf
 	nearest_class = None
 	for curr_class, curr_position in class_positions_dict.items():
