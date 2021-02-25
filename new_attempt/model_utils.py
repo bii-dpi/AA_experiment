@@ -10,6 +10,7 @@ from typing import Dict, Iterable, Callable
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from data_utils import get_class_positions, get_nearest_class_positions
 
+
 class VerboseExecution(nn.Module):
 	"""A wrapper to display model dimensionality."""
 	# From https://bit.ly/3knU5U5 
@@ -87,16 +88,20 @@ def plot_model_2D_input(model: nn.Module, device: torch.device, title: str, npix
 
 
 def plot_model_1D_input() -> None:
+	# TODO: complete definition to plot encoder, classifier.
 	pass
 
 
 def estimate_time_left(epoch: int, num_epochs: int, time_taken: float) -> None:
 	"""Print estimated time left."""
+	# XXX: this method does not seem to work properly.
 	print(f"{epoch / num_epochs * 100:.1f}% done; "
 			f"time left: {((num_epochs - epoch) / epoch) * time_taken * 100:.2f}s")
 			
 
 def get_updated_input(updater, x, y, class_positions_dict, num_updates, update_lr):
+	""""Something."""
+	### XXX: statistics concerning delta, x_list are not used. Consider deletion.
 	x_list = []
 	x.retain_grad()
 	x_list.append(x)
@@ -106,8 +111,10 @@ def get_updated_input(updater, x, y, class_positions_dict, num_updates, update_l
 	for t in range(num_updates):
 		updater_output = updater(x_list[t])
 		if y is None:
-			y = get_nearest_class_positions(class_positions_dict, updater_output)
-		updater_loss = (updater_output - get_class_positions(class_positions_dict, y)) ** 2
+			class_positions = get_nearest_class_positions(class_positions_dict, updater_output)
+		else:
+			class_positions = get_class_positions(class_positions_dict, y)
+		updater_loss = (updater_output - class_positions)  ** 2
 		updater_loss.backward(torch.ones([list(x.shape)[0], 1]))
 		#print('t ',t,' : x ',x_list[t],' xgrad ',x_list[t].grad,' y ',y)
 		with torch.no_grad():
@@ -119,7 +126,8 @@ def get_updated_input(updater, x, y, class_positions_dict, num_updates, update_l
 		sum_delta = sum_delta + torch.abs(delta)
 	return updater(x_list[-1])
 
+
 def get_accuracy(output, y):
-	"""Gets accuracy of a softmax-ed output."""
+	"""Get accuracy of a softmax-ed output."""
 	return ((torch.sum(torch.argmax(output, dim=1) == y) * 100) / len(y)).item()
 

@@ -1,4 +1,4 @@
-"""Script to train updater net on the circular and linear boundary datasets."""
+"""Script to train updater net on the 'circular-boundary' dataset."""
 
 import time
 import torch
