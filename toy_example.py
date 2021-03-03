@@ -29,13 +29,10 @@ class Updater(nn.Module):
 	def __init__(self):
 		super().__init__()
 		self.updater_fc1 = nn.Linear(2, 2)
-		# In this example, we have two classes,
-		# so we can use a 1D output.
 		self.updater_fc2 = nn.Linear(2, 2)
 		
 	def forward(self, x):
 		x = torch.sigmoid(self.updater_fc1(x))
-		# Encoded output should be within unit hypercube.
 		return torch.sigmoid(self.updater_fc2(x))
 
 
