@@ -8,7 +8,7 @@ import torch.nn.functional as F
 ##################### Constants ########################
 N_DATA = 64
 SEED = 12345
-POSITION_DICT = {0: [0], 1:[1]}
+POSITION_DICT = {0: [0, 0], 1:[1, 1]}
 N_EPOCHS = 10000
 
 
