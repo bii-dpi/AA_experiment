@@ -1,106 +1,89 @@
-"""Script to train updater net on the 'circular-boundary' dataset."""
+"""Train RobustNet."""
 
-import time
 import torch
-import argparse
-
 import numpy as np
+import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-from models import UpdaterNet, ClassifierNet
-from data_utils import prepare_circle_data, prepare_linear_data, get_class_positions_dict
-from model_utils import plot_model_2D_input, estimate_time_left, get_updated_input, get_accuracy
+from models import *
+from data_utils import *
+from model_utils import *
 
 
-def train(args, updater, class_positions_dict, classifier, prepare_data, device, optimizer):
-	updater.train()
-	classifier.train()
-	
-	optimizer.zero_grad()
-		
-	x, y = prepare_data(args.batch_size, device)
-	x.requires_grad = True
-	z = get_updated_input(updater, x, y, class_positions_dict, args.num_updates, args.update_lr)
-	output = classifier(z)
-	loss = F.cross_entropy(output, y)
-	loss.backward()
-	optimizer.step()
-	return loss.item() / args.batch_size, get_accuracy(output, y)
+torch.autograd.set_detect_anomaly(True)
+
+##################### Constants ########################
+SEED = 12345
+N_DATA = 64
+# TODO: generalize creation of this.
+POSITION_DICT = {0: [0 for _ in range(2)],
+					1: [1 for _ in range(2)]}
+N_EPOCHS = 10000
+N_UPDATES = 10
+UPDATE_EPS = 0.1
 
 
-def test(args, updater, class_positions_dict, classifier, prepare_data, device):
-	updater.eval()
-	classifier.eval()
-	#with torch.no_grad():
-	x, y = prepare_data(args.batch_size, device)
-	x.requires_grad = True
-	z = get_updated_input(updater, x, None, class_positions_dict, args.num_updates, args.update_lr)
-	output = classifier(z)
-	loss = F.cross_entropy(output, y).item() / args.batch_size
-	return loss, get_accuracy(output, y)
+###################### Training ######################
+def update_output(updater, encoded_x, y):
+	"""Update encoder output."""
+	encoded_x.retain_grad()
+	encoded_x_list = [encoded_x]
+	for curr_iter in range(N_UPDATES):
+		y = updater(encoded_x_list[curr_iter])
+		y.backward(torch.ones([N_DATA, 1]), retain_graph=True)
+		with torch.no_grad():
+			delta = UPDATE_EPS * encoded_x_list[curr_iter].grad
+			updated_encoded_x = encoded_x_list[curr_iter] - delta
+			updated_encoded_x.requires_grad_(True)
+		#encoded_x_list[curr_iter].grad.zero_()
+		encoded_x_list.append(updated_encoded_x)
+	return encoded_x_list[-1]
 
-		
-def main():
-	# Training settings.
-	parser = argparse.ArgumentParser(description="PyTorch MNIST Example")
-	parser.add_argument("--dataset", type=str, default="linear",
-						help="dataset to use (default: linear)")
-	parser.add_argument("--batch-size", type=int, default=64,
-						help="input batch size for training (default: 64)")
-	parser.add_argument("--num-epochs", type=int, default=10000,
-						help="number of epochs to train (default: 10000)")
-	parser.add_argument("--lr", type=float, default=0.1,
-						help="learning rate (default: 0.1)")
-	parser.add_argument("--no-cuda", action="store_true", default=True,
-						help="disables CUDA training")
-	parser.add_argument("--dry-run", action="store_true", default=False,
-						help="quickly check a single pass")
-	parser.add_argument("--seed", type=int, default=12345,
-						help="random seed (default: 12345)")
-	parser.add_argument("--log-interval", type=int, default=100,
-						help="interval to print training status (default: 100)")
-	parser.add_argument("--no-plot", action="store_true", default=False,
-						help="disables updater net plotting")
-	parser.add_argument("--num-updates", type=int, default=20,
-						help="number encoded input update steps (default: 10)")
-	parser.add_argument("--update-lr", type=int, default=0.1,
-						help="update step learning rate (default: 0.1)")
 
-	args = parser.parse_args()
+def get_mse_loss(prediction, y):
+	return torch.sum(torch.sub(prediction, y) ** 2)
 
-	np.random.seed(args.seed)
-	torch.manual_seed(args.seed)
 
-	use_cuda = not args.no_cuda and torch.cuda.is_available()
-	device = torch.device("cuda" if use_cuda else "cpu")
-
-	prepare_data = prepare_linear_data if args.dataset == "linear" else prepare_circle_data
-
-	class_positions_dict = get_class_positions_dict(prepare_data(args.batch_size, device)[1])	
-
-	updater = UpdaterNet().to(device)
-	classifier = ClassifierNet().to(device)
-	optimizer = optim.Adam(list(updater.parameters()) + list(classifier.parameters()), lr=args.lr)
-	
-	for epoch in range(1, args.num_epochs + 1):
-		start = time.process_time()
-		training_loss, training_accuracy = train(args, updater, class_positions_dict, classifier,
-													prepare_data, device, optimizer)
-		testing_loss, testing_accuracy = test(args, updater, class_positions_dict, classifier,
-												prepare_data, device)
-		time_taken = time.process_time() - start
-
-		if epoch == 1 and args.dry_run:
-			break
-		if  epoch == 1 or epoch % args.log_interval == 0:
-			print(f"Epoch {epoch}")
-			estimate_time_left(epoch, args.num_epochs, time_taken)
-			if not args.no_plot:
-				plot_model_2D_input(updater, device, f"Epoch {epoch}")
-			print(f"Training CE loss: {training_loss:.2f}, accuracy: {training_accuracy:.1f}%")
-			print(f"Testing CE loss: {testing_loss:.2f}, accuracy: {testing_accuracy:.1f}%\n")
+def get_updater_loss(updated_x, y):
+	class_positions = torch.Tensor([POSITION_DICT[entry.item()] for entry in y])
+	return get_mse_loss(updated_x, class_positions)
 
 
 if __name__ == "__main__":
-   main() 
+	torch.manual_seed(SEED)
+
+	encoder, updater, classifier = Encoder(), Updater(), Classifier()
+	encoder.train(); updater.train(); classifier.train()
+
+	encoder_classifier_optim = optim.Adam(list(encoder.parameters()) + \
+											list(classifier.parameters()), lr=0.1)
+	updater_optim = optim.Adam(updater.parameters(), lr=0.1)
+
+	for epoch in range(1, N_EPOCHS + 1):
+		encoder_classifier_optim.zero_grad()
+		updater_optim.zero_grad()
+
+		x, y = prepare_circle_data(N_DATA, torch.device("cpu"))
+
+		encoded_x = encoder(x)
+		#print(torch.round(encoded_x))
+		updated_x = update_output(updater, encoded_x, y)
+		prediction = classifier(updated_x)
+
+		updater_loss = get_updater_loss(encoded_x, y)
+		updater_loss.backward(retain_graph=True)
+		encoder.zero_grad()
+		updater_optim.step()
+
+		encoder_classifier_loss = F.nll_loss(prediction, y)
+		encoder_classifier_loss.backward()
+		encoder_classifier_optim.step()
+
+		if epoch % 500 == 0 or epoch == 1:
+			mean_ec_loss = encoder_classifier_loss.item() / N_DATA
+			mean_updater_loss = updater_loss.item() / N_DATA
+			print(f"Epoch {epoch}\n"
+					f"Updater loss: {mean_updater_loss:.3f}  "
+					f"Encoder & classifier loss: {mean_ec_loss:.3f}")
+			plot_model_2D_input(updater, torch.device("cpu"), f"Epoch {epoch}")

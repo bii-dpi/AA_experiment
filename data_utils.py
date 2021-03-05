@@ -34,18 +34,10 @@ def prepare_circle_data(n_data: int, device: torch.device) -> Tuple[torch.Tensor
 		x = prepare_data(n_data, 2)
 		y = torch.squeeze(torch.sum(x ** 2, axis=1) < (2.0 / np.pi)).long()
 	return x.to(device), y.to(device)
- 
-
-def get_class_positions_dict(y: torch.Tensor) -> dict:
-	"""Get the 1D projected class positions."""
-	all_classes = torch.unique(y).numpy().tolist()
-	class_positions = np.linspace(0, 1, len(all_classes))
-	class_positions_dict = dict(zip(sorted(all_classes), class_positions))
-	return class_positions_dict
 
 
 def get_class_positions(class_positions_dict: dict, y: torch.Tensor) -> torch.Tensor:
-	"""Get 1D class positions given example targets."""
+	"""Get class positions given example targets."""
 	return torch.Tensor([[class_positions_dict[entry.item()]] for entry in y])
 
 
@@ -57,9 +49,9 @@ def get_nearest_class_position(class_positions_dict: dict, output: torch.Tensor)
 		curr_dist = torch.sum((output - curr_position) ** 2)
 		if curr_dist < min_dist:
 			min_dist = curr_dist
-			nearest_class = curr_class	
+			nearest_class = curr_class
 	return class_positions_dict[nearest_class]
-			
+
 
 def get_nearest_class_positions(class_positions_dict: dict, updater_output: torch.Tensor) -> torch.Tensor:
 	"""Get nearest class position for each evaluation example."""

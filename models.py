@@ -1,30 +1,47 @@
-"""Updater-net model class definition."""
-
 import torch
+import numpy as np
 import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
 
 
-class UpdaterNet(nn.Module):
-	"""Updater net definition updates inputs wrt to a surrogate loss."""
+class Encoder(nn.Module):
 	def __init__(self):
 		super().__init__()
-		self.fc1 = nn.Linear(2, 32)
-		#self.fc2 = nn.Linear(32, 32)
-		self.fc3 = nn.Linear(32, 1)
-		
-	def forward(self, x: torch.Tensor) -> torch.Tensor:
-		x = self.fc1(x)
-		x = torch.sigmoid(x)
-		#x = self.fc2(x)
-		#x = torch.sigmoid(x)
-		x = self.fc3(x)
-		return x
+		self.encoder_fc1 = nn.Linear(2, 2)
+		self.encoder_fc2 = nn.Linear(2, 2)
 
-class ClassifierNet(nn.Module):
-	"""Classifies updated input."""
+	def forward(self, x):
+		x = torch.sigmoid(self.encoder_fc1(x))
+		# Encoded output should be within unit hypercube.
+		return torch.sigmoid(self.encoder_fc2(x))
+
+
+class Updater(nn.Module):
 	def __init__(self):
 		super().__init__()
-		self.fc1 = nn.Linear(1, 2)
+		self.updater_fc1 = nn.Linear(2, 4)
+		self.updater_fc2 = nn.Linear(4, 1)
+		# Initialize the parameters to give an initial
+		# output of 1 for all inputs.
+		#with torch.no_grad():
+		   #self.updater_fc1.weight.fill_(3)
+		   #self.updater_fc2.weight.fill_(3)
 
-	def forward(self, x: torch.Tensor) -> torch.Tensor:
-		return torch.softmax(self.fc1(x), dim=1)
+	def forward(self, x):
+		x = torch.sigmoid(self.updater_fc1(x))
+		return torch.sigmoid(self.updater_fc2(x))
+
+
+class Classifier(nn.Module):
+	def __init__(self):
+		super().__init__()
+		self.classifier_fc1 = nn.Linear(2, 2)
+		self.classifier_fc2 = nn.Linear(2, 2)
+
+	def forward(self, x):
+		# Will take in updated encoder output.
+		x = torch.sigmoid(self.classifier_fc1(x))
+		x = self.classifier_fc2(x)
+		return F.log_softmax(x, dim=1)
+
