@@ -71,7 +71,7 @@ if __name__ == "__main__":
 		updated_x = update_output(updater, encoded_x, y)
 		prediction = classifier(updated_x)
 
-		updater_loss = get_updater_loss(encoded_x, y)
+		updater_loss = get_updater_loss(updated_x, y)
 		updater_loss.backward(retain_graph=True)
 		encoder.zero_grad()
 		updater_optim.step()
